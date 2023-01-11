@@ -1,3 +1,5 @@
 /config/
 /pkg/
 /.idea
+/server/server.exe
+/client/client.exe
