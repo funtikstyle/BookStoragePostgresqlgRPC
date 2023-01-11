@@ -5,20 +5,21 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	//"github.com/jackc/pgx"
 	"log"
 	"net"
 	"os"
 
 	// "server/pgxpool"
 	// "server/pgx/pgxpool"
-	pb "server/proto"
+	pb "BookStoragePostgresqlgRPC/proto"
 
 	// "github.com/jackc/pgx"
-	"../config"
-	"github.com/jackc/pgx"
+	"BookStoragePostgresqlgRPC/config"
+	"github.com/jackc/pgx/v5"
 	// "github.com/jackc/pgx/v5"
 
-	"github.com/jackc/pgx/pgxpool"
+	//"github.com/jackc/pgx/pgxpool"
 	// "/user/local/go/jackc/pgx/pgxpool"
 	// "pgx"
 	// "server/pgxpool"
@@ -118,7 +119,7 @@ func valuesToBook(val []any) *pb.Book {
 }
 
 func main() {
-	
+
 	dbpool, err := pgx.Connect(context.Background(), config.GetUrlServer())
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to create connection pool: %v\n", err)

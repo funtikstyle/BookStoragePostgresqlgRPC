@@ -7,8 +7,9 @@ import (
 	"log"
 	"time"
 
-	"../config"
-	pb "../proto"
+	"BookStoragePostgresqlgRPC/config"
+	pb "BookStoragePostgresqlgRPC/proto"
+
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
