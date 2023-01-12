@@ -120,7 +120,8 @@ func valuesToBook(val []any) *pb.Book {
 
 func main() {
 
-	dbpool, err := pgx.Connect(context.Background(), config.GetUrlServer())
+	url := fmt.Sprintf("postgres://%s:%s@%s:%s/%s", config.Login, config.Pass, config.IP, config.Port, config.DB)
+	dbpool, err := pgx.Connect(context.Background(), url)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to create connection pool: %v\n", err)
 		os.Exit(1)
