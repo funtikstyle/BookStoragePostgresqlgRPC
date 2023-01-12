@@ -7,14 +7,15 @@ import (
 	"log"
 	"time"
 
-	"BookStoragePostgresqlgRPC/config"
 	pb "BookStoragePostgresqlgRPC/proto"
-
+	"client/config"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-var addr = flag.String("addr", config.GetIP(), "the address to connect to")
+// var url string
+var url = fmt.Sprintf("%s:%s", config.IP, config.Port)
+var addr = flag.String("addr", url, "the address to connect to")
 
 var id string
 
