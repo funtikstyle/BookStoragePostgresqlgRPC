@@ -1,6 +1,9 @@
 package config
 
 const (
-	IP   = "server IP address"
-	Port = "server port"
+	GrpcIP   = "grpc server IP address"
+	GrpcPort = "grpc server port"
+
+	ServerIP   = "server IP address"
+	ServerPort = "server port"
 )

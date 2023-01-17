@@ -1,23 +1,26 @@
 package main
 
 import (
+	"client/handler/clientHandler"
 	"context"
 	"flag"
 	"fmt"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"log"
+	"net/http"
 	"time"
 
 	pb "BookStoragePostgresqlgRPC/proto"
 	"client/config"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
+	"client/handler/bookHandler"
+	"client/service"
+
+	"github.com/gorilla/mux"
 )
 
-// var url string
-var url = fmt.Sprintf("%s:%s", config.IP, config.Port)
+var url = fmt.Sprintf("%s:%s", config.GrpcIP, config.GrpcPort)
 var addr = flag.String("addr", url, "the address to connect to")
-
-var id string
 
 func main() {
 
@@ -30,30 +33,41 @@ func main() {
 	defer conn.Close()
 	c := pb.NewGreeterClient(conn)
 
-	fmt.Scan(&id)
-	fmt.Println(id)
-
-	// Contact the server and print out its response.
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
-	// r, err := c.GetBooksStorage(ctx, &pb.GetBooksRequest{})
-	// if err != nil {
-	// 	log.Fatalf("could not greet: %v", err)
-	// }
-	// fmt.Println(r.Books)
+	serviceBook := service.NewServiceBook(ctx, c)
+	BookHandler := bookHandler.NewBookHandler(serviceBook)
+	ClientHandler := clientHandler.NewClientHandler(serviceBook)
 
-	book := pb.Book{Author: "Vasya", Title: "1234567"}
-	_, err = c.CreateBookStorage(ctx, &pb.CreateBookRequest{Book: &book})
-	if err != nil {
-		log.Fatalf("could not greet: %v", err)
+	route := mux.NewRouter()
+
+	route.HandleFunc("/book/list", BookHandler.GetBooks).Methods("GET")
+	route.HandleFunc("/book/{id}", BookHandler.GetBook).Methods("GET")
+	route.HandleFunc("/book/create", BookHandler.CreateBook).Methods("POST")
+	route.HandleFunc("/book/{id}", BookHandler.UpdateBook).Methods("PUT")
+	route.HandleFunc("/book/{id}", BookHandler.DeleteBook).Methods("DELETE")
+	route.HandleFunc("/book/take/{clientId}", BookHandler.TakeABook).Methods("POST")
+	route.HandleFunc("/book/return/{id}", BookHandler.ReturnABook).Methods("GET")
+	route.HandleFunc("/client/booklist/{id}", BookHandler.GetBooksByClientId).Methods("GET")
+
+	route.HandleFunc("/client/create", ClientHandler.CreateClient).Methods("POST")
+	route.HandleFunc("/client/list", ClientHandler.GetClients).Methods("GET")
+	route.HandleFunc("/client/{id}", ClientHandler.DeleteClient).Methods("DELETE")
+	route.HandleFunc("/client/{id}", ClientHandler.GetClient).Methods("GET")
+	route.HandleFunc("/client/{id}", ClientHandler.UpdateClient).Methods("PUT")
+
+	http.Handle("/", route)
+
+	urlServer := fmt.Sprintf("%s:%s", config.ServerIP, config.ServerPort)
+
+	srv := &http.Server{
+		Handler: route,
+		Addr:    urlServer,
+		// Good practice: enforce timeouts for servers you create!
+		WriteTimeout: 15 * time.Second,
+		ReadTimeout:  15 * time.Second,
 	}
 
-	// answer, _ := strconv.ParseInt(id, 10, 64)
-	// bookDelete := pb.DeleteBookRequest{Id: answer}
-	// _, err = c.DeleteBookStorage(ctx, &bookDelete)
-	// if err != nil {
-	// 	log.Fatalf("could not greet: %v", err)
-	// }
-
+	log.Fatal(srv.ListenAndServe())
 }

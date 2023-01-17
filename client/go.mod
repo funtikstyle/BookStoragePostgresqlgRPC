@@ -3,8 +3,9 @@ module client
 go 1.19
 
 require (
-	BookStoragePostgresqlgRPC/config v0.0.0
+
 	BookStoragePostgresqlgRPC/proto v0.0.0
+	github.com/gorilla/mux v1.8.0
 	google.golang.org/grpc v1.52.0
 )
 
@@ -17,6 +18,6 @@ require (
 	google.golang.org/protobuf v1.28.1 // indirect
 )
 
-replace BookStoragePostgresqlgRPC/config => ../config
+
 
 replace BookStoragePostgresqlgRPC/proto => ../proto

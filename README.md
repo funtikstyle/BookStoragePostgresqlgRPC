@@ -13,16 +13,16 @@ This service is used to store books in a Postgresql database with the server par
 Example Usage
 -----
 
-server
+server configuration:
 ```go
 //config.go
 package config
 
 const (
-	Login = "database login"
-	Pass  = "database password"
-	IP    = "database ip address"
-	Port  = "database port"
+	DbLogin = "database login"
+	DBPass  = "database password"
+	DbIP    = "database ip address"
+	DbPort  = "database port"
 	DB    = "database name"
 	
 	ServerPort = "The server port"
@@ -30,7 +30,7 @@ const (
 ```
 ---
 
-client
+client configuration:
 ```go
 //client/config.go
 package config
