@@ -15,7 +15,7 @@ Example Usage
 
 server configuration:
 ```go
-//config.go
+//server/config.go
 package config
 
 const (
