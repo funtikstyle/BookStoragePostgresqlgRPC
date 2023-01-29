@@ -1,0 +1,9 @@
+version: 0.0.3
+
+services:
+  golangserver:
+    build: ./
+    restart: always
+    network_mode: host
+    ports:
+      - 50051:50051
