@@ -1,4 +1,5 @@
-/config/
+/server/config/
+/client/config/
 /pkg/
 /.idea
 /server/server.exe

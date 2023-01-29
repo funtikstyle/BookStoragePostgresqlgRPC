@@ -5,19 +5,15 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"strconv"
-	"strings"
-
+	"github.com/jackc/pgx/v5"
+	"google.golang.org/grpc"
 	"log"
 	"net"
 	"os"
-
-	pb "BookStoragePostgresqlgRPC/proto"
-
-	"BookStoragePostgresqlgRPC/config"
-	"github.com/jackc/pgx/v5"
-
-	"google.golang.org/grpc"
+	"server/config"
+	pb "server/proto"
+	"strconv"
+	"strings"
 )
 
 var (
@@ -30,134 +26,158 @@ type server struct {
 }
 
 func (s *server) CreateBookStorage(ctx context.Context, book *pb.CreateBookRequest) (*pb.CreateBookReply, error) {
-	_, err := s.connect.Query(
+	reply := pb.CreateBookReply{}
+	rows, err := s.connect.Query(
 		context.Background(),
 		fmt.Sprintf(
 			"INSERT INTO book (\"Author\", \"Title\")"+
 				"VALUES ('%s', '%s')", book.Book.Author, book.Book.Title),
 	)
+	defer rows.Close()
 
 	if err != nil {
-		return nil, err
+		log.Println(err)
+		return &reply, errors.New("internal server error")
 	}
 
-	return &pb.CreateBookReply{}, nil
+	return &reply, nil
 }
 
 func (s *server) GetBooksStorage(ctx context.Context, in *pb.GetBooksRequest) (*pb.BooksReply, error) {
+	reply := pb.BooksReply{}
 	rows, err := s.connect.Query(context.Background(), "SELECT * FROM book")
+	defer rows.Close()
+
 	if err != nil {
-		return nil, err
+		log.Println(err)
+		return &reply, errors.New("internal server error")
 	}
 
-	answer := &pb.BooksReply{}
-	answer.Books, err = rowsToBooksList(rows)
+	reply.Books, err = rowsToBooksList(rows)
 
-	return answer, err
-}
-
-func (s *server) DeleteBookStorage(ctx context.Context, request *pb.DeleteBookRequest) (*pb.DeleteBookReply, error) {
-	_, err := s.connect.Query(
-		context.Background(),
-		fmt.Sprintf(
-			"DELETE FROM book "+
-				"WHERE \"id\" = %d", request.Id),
-	)
-	if err != nil {
-		return nil, err
-
-	}
-
-	return &pb.DeleteBookReply{}, nil
+	return &reply, nil
 }
 
 func (s *server) GetBookStorage(ctx context.Context, request *pb.GetBookRequest) (*pb.GetBookReply, error) {
-	reply := &pb.GetBookReply{}
+	reply := pb.GetBookReply{}
 
 	rows, err := s.connect.Query(
 		context.Background(),
 		fmt.Sprintf(
-			"SELECT id, Author, Title, ClientID, isTaken"+
+			"SELECT b.id, b.\"Author\", b.\"Title\", b.\"ClientID\", b.\"isTaken\" "+
 				"FROM book AS b WHERE b.id = %d", request.ID),
 	)
-
+	defer rows.Close()
 	if err != nil {
-		return reply, err
+		log.Println(err)
+
+		return &reply, errors.New("internal server error")
 	}
 
 	if rows.Next() {
 		val, err := rows.Values()
 		if err != nil {
-			return reply, err
+			log.Println(err)
+			return &reply, errors.New("internal server error")
 		}
 
 		reply.Book = valuesToBook(val)
 	}
 
-	return reply, nil
+	return &reply, nil
+}
+
+func (s *server) DeleteBookStorage(ctx context.Context, request *pb.DeleteBookRequest) (*pb.DeleteBookReply, error) {
+	reply := pb.DeleteBookReply{}
+	rows, err := s.connect.Query(
+		context.Background(),
+		fmt.Sprintf(
+			"DELETE FROM book "+
+				"WHERE \"id\" = %d", request.Id),
+	)
+	defer rows.Close()
+
+	if err != nil {
+		log.Println(err)
+		return nil, errors.New("internal server error")
+	}
+
+	return &reply, nil
 }
 
 func (s *server) UpdateBookStorage(ctx context.Context, request *pb.UpdateBookRequest) (*pb.UpdateBookReply, error) {
+	reply := pb.UpdateBookReply{}
 	book := request.Book
 	id := request.ID
-	_, err := s.connect.Query(
+
+	rows, err := s.connect.Query(
 		context.Background(),
 		fmt.Sprintf(
 			"UPDATE book "+
 				"SET \"Author\" = '%s', "+
 				"\"Title\" = '%s', "+
-				"\"ClientID\" = %d "+
-				"WHERE \"id\" = %d", book.Author, book.Title, book.ClientID, id),
+				"\"ClientID\" = %d, "+
+				"\"isTaken\" = '%t' "+
+				"WHERE \"id\" = %d ", book.Author, book.Title, book.ClientID, book.IsTaken, id),
 	)
+	defer rows.Close()
+
 	if err != nil {
-		return &pb.UpdateBookReply{}, err
+		log.Println("internal server error")
+		return &reply, errors.New("internal server error")
 	}
-	return &pb.UpdateBookReply{}, nil
+
+	return &reply, nil
 }
 
 func (s *server) StatusClientByBooks(ctx context.Context, request *pb.StatusClientByBooksRequest) (*pb.StatusClientByBooksReply, error) {
+	reply := pb.StatusClientByBooksReply{IsTaken: false}
 	id := request.ID
 
 	rows, err := s.connect.Query(context.Background(),
 		fmt.Sprintf("SELECT * FROM book WHERE \"ClientID\" = %d LIMIT 1", id))
+	defer rows.Close()
 
 	if err != nil {
-		println(err.Error())
-
-		return &pb.StatusClientByBooksReply{IsTaken: false}, err
+		log.Println(err)
+		return &reply, errors.New("internal server error")
 	}
 
 	if rows.Next() {
-		return &pb.StatusClientByBooksReply{IsTaken: true}, nil
+		reply.IsTaken = true
+		return &reply, nil
 	}
 
-	return &pb.StatusClientByBooksReply{IsTaken: false}, nil
+	return &reply, nil
 }
 
-func (s *server) GetBooksByClientId(ctx context.Context, request *pb.GetBooksByClientIdRequest) (*pb.GetBooksByClientIdReply, error) {
+func (s *server) GetBooksByClientIdStorage(ctx context.Context, request *pb.GetBooksByClientIdRequest) (*pb.GetBooksByClientIdReply, error) {
+	reply := pb.GetBooksByClientIdReply{}
 	id := request.ID
 
 	rows, err := s.connect.Query(context.Background(),
 		fmt.Sprintf("SELECT * FROM book WHERE \"ClientID\" = %d ", id))
+	defer rows.Close()
 
 	if err != nil {
-		println(err.Error())
+		log.Println(err)
 
-		return nil, err
+		return nil, errors.New("internal server error")
 	}
 
 	books, err := rowsToBooksList(rows)
 
 	if err != nil {
-		println(err.Error())
+		log.Println(err)
 
-		return nil, err
+		return &reply, errors.New("internal server error")
 	}
-
-	return &pb.GetBooksByClientIdReply{BookList: books}, nil
+	reply.BookList = books
+	return &reply, nil
 }
 
 func (s *server) GetNotTakenBookByIds(ctx context.Context, request *pb.GetNotTakenBookByIdsRequest) (*pb.GetNotTakenBookByIdsReply, error) {
+	reply := pb.GetNotTakenBookByIdsReply{}
 	ids := request.Ids
 	idsString := make([]string, len(ids))
 
@@ -167,104 +187,121 @@ func (s *server) GetNotTakenBookByIds(ctx context.Context, request *pb.GetNotTak
 
 	rows, _ := s.connect.Query(context.Background(),
 		fmt.Sprintf("SELECT * FROM book WHERE \"id\" IN (%s) AND \"isTaken\" = false", strings.Join(idsString, ",")))
-	books, _ := rowsToBooksList(rows)
+	defer rows.Close()
 
-	return &pb.GetNotTakenBookByIdsReply{BookList: books}, nil
+	books, _ := rowsToBooksList(rows)
+	reply.BookList = books
+
+	return &reply, nil
 }
 
 func (s *server) CreateClientStorage(ctx context.Context, request *pb.CreateClientRequest) (*pb.CreateClientReply, error) {
-	client := request.Client
+	reply := pb.CreateClientReply{}
 
-	_, err := s.connect.Query(
+	rows, err := s.connect.Query(
 		context.Background(),
 		fmt.Sprintf(
-			"INSERT INTO client (\"Name\", \"Phone\")"+
-				"VALUES ('%s', '%s')", client.Name, client.PhoneName),
+			"INSERT INTO client (\"Name\", \"Phone\") "+
+				"VALUES ('%s', %d)", request.Client.Name, request.Client.PhoneName),
 	)
-	if err != nil {
+	defer rows.Close()
 
-		return &pb.CreateClientReply{}, err
+	if err != nil {
+		log.Println("internal server error")
+		return &reply, errors.New("internal server error")
 	}
 
-	return &pb.CreateClientReply{}, nil
+	return &reply, nil
 }
 
 func (s *server) GetClientsStorage(ctx context.Context, request *pb.GetClientsRequest) (*pb.GetClientsReply, error) {
+	reply := &pb.GetClientsReply{}
 
 	rows, err := s.connect.Query(context.Background(), "SELECT * FROM client")
+	defer rows.Close()
 
 	if err != nil {
-
-		return nil, err
+		log.Println(err)
+		return reply, errors.New("internal server error")
 	}
 
-	answer := &pb.GetClientsReply{}
-	answer.ClientList, err = rowsToClientsList(rows)
+	reply.ClientList, err = rowsToClientsList(rows)
 
-	return answer, err
+	return reply, err
 }
 
 func (s *server) DeleteClientStorage(ctx context.Context, request *pb.DeleteClientRequest) (*pb.DeleteClientReply, error) {
+	reply := pb.DeleteClientReply{}
 	id := request.ID
 
-	_, err := s.connect.Query(
+	rows, err := s.connect.Query(
 		context.Background(),
 		fmt.Sprintf(
-			"DELETE FROM client "+
+			"DELETE FROM \"client\" "+
 				"WHERE \"id\" = %d", id),
 	)
+	defer rows.Close()
 
 	if err != nil {
-
-		return &pb.DeleteClientReply{}, err
+		log.Println(err)
+		return &reply, errors.New("internal server error")
 	}
 
-	return &pb.DeleteClientReply{}, nil
+	return &reply, nil
 }
 
 func (s *server) GetClientStorage(ctx context.Context, request *pb.GetClientRequest) (*pb.GetClientReply, error) {
+	reply := pb.GetClientReply{}
 	id := request.ID
 
 	rows, err := s.connect.Query(context.Background(),
-		fmt.Sprintf("SELECT \"id\", \"Name\", \"Phone\" FROM clientWHERE\"id\" = %d", id))
+		fmt.Sprintf("SELECT \"id\", \"Name\", \"Phone\" FROM client WHERE \"id\" = %d", id))
+	defer rows.Close()
 
 	if err != nil {
-		return &pb.GetClientReply{}, err
+		log.Println(err)
+		return &reply, errors.New("internal server error")
 	}
 
 	client := &pb.Client{}
 
 	if rows.Next() {
 		val, err := rows.Values()
-		if err != nil {
 
-			return &pb.GetClientReply{}, err
+		if err != nil {
+			log.Println(err)
+			return &reply, errors.New("internal server error")
 		}
+
 		client = valuesToClient(val)
 	}
-
-	return &pb.GetClientReply{Client: client, StatusReply: true}, nil
+	reply.Client = client
+	//reply.StatusReply = true
+	return &reply, nil
 }
 
 func (s *server) UpdateClientStorage(ctx context.Context, request *pb.UpdateClientRequest) (*pb.UpdateClientReply, error) {
+	reply := pb.UpdateClientReply{}
 	client := request.Client
 	id := request.ID
 
-	_, err := s.connect.Query(
-		context.Background(),
-		fmt.Sprintf(
-			"UPDATE book "+
-				"SET \"Name\" = '%s', "+
-				"\"Phone\" = '%s', "+
-				"WHERE \"id\" = %d", client.Name, client.PhoneName, id),
-	)
+	queryString := fmt.Sprintf(
+		"UPDATE client "+
+			"SET \"Name\" = '%s', "+
+			"\"Phone\" = %d "+
+			"WHERE \"id\" = %d", client.Name, client.PhoneName, id)
+
+	rows, err := s.connect.Query(
+		context.Background(), queryString)
+	defer rows.Close()
 
 	if err != nil {
-
-		return &pb.UpdateClientReply{StatusReply: false}, err
+		//reply.StatusReply = false
+		log.Println(err)
+		return &reply, errors.New("internal server error")
 	}
-
-	return &pb.UpdateClientReply{StatusReply: true}, nil
+	//reply.StatusReply = true
+	return &reply, nil
 }
 
 func rowsToBooksList(rows pgx.Rows) (map[int64]*pb.Book, error) {
@@ -273,32 +310,16 @@ func rowsToBooksList(rows pgx.Rows) (map[int64]*pb.Book, error) {
 	for rows.Next() {
 		val, err := rows.Values()
 		if err != nil {
+			log.Println(err)
 			return nil, errors.New("error while iterating dataset")
 		}
 
 		book := valuesToBook(val)
 		booklist[int64(book.ID)] = book
-
 	}
+	rows.Close()
 
 	return booklist, nil
-}
-
-func rowsToClientsList(rows pgx.Rows) (map[int64]*pb.Client, error) {
-	clientlist := map[int64]*pb.Client{}
-
-	for rows.Next() {
-		val, err := rows.Values()
-		if err != nil {
-			return nil, errors.New("error while iterating dataset")
-		}
-
-		client := valuesToClient(val)
-		clientlist[int64(client.ID)] = client
-
-	}
-
-	return clientlist, nil
 }
 
 func valuesToBook(val []any) *pb.Book {
@@ -324,10 +345,29 @@ func valuesToBook(val []any) *pb.Book {
 	return &book
 }
 
+func rowsToClientsList(rows pgx.Rows) (map[int64]*pb.Client, error) {
+	clientlist := map[int64]*pb.Client{}
+
+	for rows.Next() {
+		val, err := rows.Values()
+		if err != nil {
+			log.Println(err)
+			return nil, errors.New("error while iterating dataset")
+		}
+
+		client := valuesToClient(val)
+		clientlist[int64(client.ID)] = client
+
+	}
+	rows.Close()
+
+	return clientlist, nil
+}
+
 func valuesToClient(val []any) *pb.Client {
 	id := val[0].(int32)
 	Name := val[1].(string)
-	PhoneName := val[2].(string)
+	PhoneName := val[2].(int32)
 
 	client := pb.Client{
 		ID:        id,

@@ -1,9 +1,15 @@
 package config
 
 const (
-	GrpcIP   = "grpc server IP address"
-	GrpcPort = "grpc server port"
+	//grpc server IP address
+	GrpcIP = "localhost"
 
-	ServerIP   = "server IP address"
-	ServerPort = "server port"
+	//grpc server port
+	GrpcPort = "50051"
+
+	//server IP address
+	ServerIP = "localhost" //
+
+	//server port
+	ServerPort = "50052"
 )

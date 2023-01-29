@@ -2,6 +2,7 @@ package main
 
 import (
 	"client/handler/clientHandler"
+	pb "client/proto"
 	"context"
 	"flag"
 	"fmt"
@@ -11,7 +12,6 @@ import (
 	"net/http"
 	"time"
 
-	pb "BookStoragePostgresqlgRPC/proto"
 	"client/config"
 	"client/handler/bookHandler"
 	"client/service"
@@ -26,15 +26,19 @@ func main() {
 
 	flag.Parse()
 	// Set up a connection to the server.
+	//conn, err := grpc.Dial(*addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	conn, err := grpc.Dial(*addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
 	}
 	defer conn.Close()
 	c := pb.NewGreeterClient(conn)
+	//c := pb.NewGreeterClient()
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
+	//ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	//ctx, cancel := context.WithCancel(context.Background())
+	ctx := context.Background()
+	//defer cancel()
 
 	serviceBook := service.NewServiceBook(ctx, c)
 	BookHandler := bookHandler.NewBookHandler(serviceBook)
@@ -65,9 +69,10 @@ func main() {
 		Handler: route,
 		Addr:    urlServer,
 		// Good practice: enforce timeouts for servers you create!
-		WriteTimeout: 15 * time.Second,
-		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 45 * time.Second,
+		ReadTimeout:  45 * time.Second,
 	}
 
+	log.Println("Client started...")
 	log.Fatal(srv.ListenAndServe())
 }

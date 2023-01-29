@@ -3,8 +3,8 @@ module server
 go 1.19
 
 require (
-	BookStoragePostgresqlgRPC/config v0.0.0
-	BookStoragePostgresqlgRPC/proto v0.0.0
+	//BookStoragePostgresqlgRPC/config v0.0.0
+	//BookStoragePostgresqlgRPC/proto v0.0.0
 	github.com/jackc/pgx/v5 v5.2.0
 	google.golang.org/grpc v1.52.0
 	google.golang.org/protobuf v1.28.1
@@ -21,6 +21,7 @@ require (
 	google.golang.org/genproto v0.0.0-20221118155620-16455021b5e6 // indirect
 )
 
-replace BookStoragePostgresqlgRPC/config => ../config
+//replace BookStoragePostgresqlgRPC/config => ../config
 
-replace BookStoragePostgresqlgRPC/proto => ../proto
+//replace BookStoragePostgresqlgRPC/proto => ../proto
+//replace server/proto => ../proto
